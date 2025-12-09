@@ -6,6 +6,7 @@ import Observation
 @Observable
 class DashboardViewModel {
     private let hkManager = HKManager.shared
+    private let cache = DashboardCache.shared
 
     var workouts: [Workout] = []
     var restingHeartRate: Double?
@@ -14,12 +15,12 @@ class DashboardViewModel {
     var errorMessage: String?
     var isLoading = false
 
-    /// Load all dashboard data (authorization + workouts + wellness metrics)
+    /// Load all dashboard data with caching strategy
     func loadAllData() async {
-        isLoading = true
-        defer { isLoading = false }
+        // Step 1: Load cached data immediately (fast)
+        loadCachedData()
 
-        // Step 1: Request authorization
+        // Step 2: Request authorization
         do {
             try await hkManager.requestAuthorization()
         } catch {
@@ -27,127 +28,72 @@ class DashboardViewModel {
             return
         }
 
-        // Step 2: Fetch all data in parallel
+        // Step 3: Fetch fresh data in background (slower but accurate)
+        isLoading = true
         await withTaskGroup(of: Void.self) { group in
-            group.addTask { await self.fetchWorkouts() }
+            group.addTask { await self.fetchBasicWorkouts() }
             group.addTask { await self.fetchWellnessMetrics() }
+        }
+        isLoading = false
+
+        // Step 4: Save fresh data to cache
+        saveCachedData()
+    }
+
+    /// Load cached data immediately for instant UI
+    private func loadCachedData() {
+        if let cachedWorkouts = cache.getCachedWorkouts() {
+            self.workouts = cachedWorkouts
+        }
+        if let cachedMetrics = cache.getCachedMetrics() {
+            self.restingHeartRate = cachedMetrics.rhr
+            self.heartRateVariability = cachedMetrics.hrv
+            self.vo2Max = cachedMetrics.vo2Max
         }
     }
 
-    private func fetchWorkouts() async {
+    /// Save current data to cache
+    private func saveCachedData() {
+        cache.cacheWorkouts(workouts)
+        cache.cacheMetrics(
+            rhr: restingHeartRate,
+            hrv: heartRateVariability,
+            vo2Max: vo2Max
+        )
+    }
+
+    /// Fetch basic workout data (fast) - only what Dashboard needs
+    private func fetchBasicWorkouts() async {
         do {
-            let hkWorkouts = try await hkManager.fetchRunningWorkouts(limit: 50)
+            // Only fetch recent 10 workouts for Dashboard
+            let hkWorkouts = try await hkManager.fetchRunningWorkouts(limit: 10)
 
-            // Enrich workouts with additional data
-            var enrichedWorkouts: [Workout] = []
+            // Convert to basic Workout objects (no detailed samples)
+            let basicWorkouts = hkWorkouts.map { Workout(from: $0) }
 
-            for hkWorkout in hkWorkouts {
-                var workout = Workout(from: hkWorkout)
-
-                // Fetch heart rate samples
-                if let hrType = HKTypes.heartRate {
-                    let hrSamples = try? await hkManager.fetchQuantitySamples(for: hrType, during: hkWorkout)
-                    workout = workout.withHeartRateData(hrSamples ?? [])
-                }
-
-                // Fetch speed samples
-                var speedSamples: [HKQuantitySample]?
-                if let speedType = HKTypes.runningSpeed {
-                    speedSamples = try? await hkManager.fetchQuantitySamples(for: speedType, during: hkWorkout)
-                    workout = workout.withSpeedData(speedSamples ?? [])
-                }
-
-                // Fetch power samples
-                if let powerType = HKTypes.runningPower {
-                    let powerSamples = try? await hkManager.fetchQuantitySamples(for: powerType, during: hkWorkout)
-                    workout = workout.withPowerData(powerSamples ?? [])
-                }
-
-                // Fetch vertical oscillation time-series samples
-                if let voType = HKTypes.verticalOscillation {
-                    let voSamples = try? await hkManager.fetchQuantitySamples(for: voType, during: hkWorkout)
-                    if let samples = voSamples, !samples.isEmpty {
-                        workout = workout.withVerticalOscillationSamples(samples)
-                    }
-                }
-
-                // Fetch ground contact time time-series samples
-                if let gctType = HKTypes.groundContactTime {
-                    let gctSamples = try? await hkManager.fetchQuantitySamples(for: gctType, during: hkWorkout)
-                    if let samples = gctSamples, !samples.isEmpty {
-                        workout = workout.withGroundContactTimeSamples(samples)
-                    }
-                }
-
-                // Fetch stride length time-series samples
-                var strideSamples: [HKQuantitySample]?
-                if let strideType = HKTypes.strideLength {
-                    strideSamples = try? await hkManager.fetchQuantitySamples(for: strideType, during: hkWorkout)
-                    if let samples = strideSamples, !samples.isEmpty {
-                        workout = workout.withStrideLengthSamples(samples)
-                    }
-                }
-
-                // Calculate cadence from stride length and speed
-                if let strideSamples = strideSamples, !strideSamples.isEmpty,
-                   let speedSamples = speedSamples, !speedSamples.isEmpty {
-                    workout = workout.withCalculatedCadence(
-                        strideSamples: strideSamples,
-                        speedSamples: speedSamples
-                    )
-                }
-
-                // Fetch running form metrics (averages)
-                workout = await fetchRunningMetrics(for: hkWorkout, into: workout)
-
-                // Fetch GPS route with elevation data
-                if let locations = try? await hkManager.fetchRouteWithElevation(for: hkWorkout) {
-                    // Extract coordinates for route display
-                    let coordinates = locations.map { $0.coordinate }
-                    workout = workout.withRoute(coordinates)
-
-                    // Extract elevation samples
-                    workout = workout.withElevationSamples(locations)
-                }
-
-                enrichedWorkouts.append(workout)
-            }
-
-            self.workouts = enrichedWorkouts
+            self.workouts = basicWorkouts
         } catch {
             errorMessage = (error as? HKError)?.errorDescription ?? error.localizedDescription
         }
     }
 
-    private func fetchRunningMetrics(for hkWorkout: HKWorkout, into workout: Workout) async -> Workout {
-        // Fetch all running form metrics
-        let voSamples: [HKQuantitySample]? = if let voType = HKTypes.verticalOscillation {
-            try? await hkManager.fetchQuantitySamples(for: voType, during: hkWorkout)
-        } else {
-            nil
+    /// Load more workouts for Activity view (50 total instead of 10)
+    func loadMoreWorkoutsForActivity() async {
+        // If we already have more than 10 workouts, no need to reload
+        if workouts.count > 10 {
+            return
         }
 
-        let gctSamples: [HKQuantitySample]? = if let gctType = HKTypes.groundContactTime {
-            try? await hkManager.fetchQuantitySamples(for: gctType, during: hkWorkout)
-        } else {
-            nil
+        isLoading = true
+        do {
+            // Fetch more workouts (50) for Activity view
+            let hkWorkouts = try await hkManager.fetchRunningWorkouts(limit: 50)
+            let basicWorkouts = hkWorkouts.map { Workout(from: $0) }
+            self.workouts = basicWorkouts
+        } catch {
+            errorMessage = (error as? HKError)?.errorDescription ?? error.localizedDescription
         }
-
-        let strideSamples: [HKQuantitySample]? = if let strideType = HKTypes.strideLength {
-            try? await hkManager.fetchQuantitySamples(for: strideType, during: hkWorkout)
-        } else {
-            nil
-        }
-
-        // Note: Cadence is typically not available directly, calculated from stride and speed
-        let cadenceSamples: [HKQuantitySample]? = nil
-
-        return workout.withRunningMetrics(
-            verticalOscillation: voSamples,
-            groundContactTime: gctSamples,
-            cadence: cadenceSamples,
-            strideLength: strideSamples
-        )
+        isLoading = false
     }
 
     private func fetchWellnessMetrics() async {

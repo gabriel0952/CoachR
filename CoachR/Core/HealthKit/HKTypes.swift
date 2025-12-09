@@ -70,4 +70,14 @@ enum HKTypes {
     static var strideLength: HKQuantityType? {
         HKQuantityType.quantityType(forIdentifier: .runningStrideLength)
     }
+
+    static var runningStrideLength: HKQuantityType? {
+        HKQuantityType.quantityType(forIdentifier: .runningStrideLength)
+    }
+
+    // Note: Cadence is typically calculated from stride length and speed
+    // Some devices may provide it directly, but it's not always available
+    static var runningCadence: HKQuantityType? {
+        HKQuantityType.quantityType(forIdentifier: .runningStrideLength)
+    }
 }

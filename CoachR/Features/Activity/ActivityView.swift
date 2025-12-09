@@ -51,6 +51,8 @@ struct ActivityView: View {
             }
             .task {
                 await viewModel.loadAllData()
+                // Load more workouts for Activity view (50 instead of 10)
+                await viewModel.loadMoreWorkoutsForActivity()
             }
         }
     }

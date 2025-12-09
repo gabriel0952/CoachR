@@ -10,11 +10,24 @@ import MapKit
 /// - Swift Charts 圖表（心率、配速、功率）
 /// - 跑姿分析（優雅降級）
 struct ActivityDetailView: View {
-    let workout: Workout
+    @State private var viewModel: ActivityDetailViewModel
+
+    init(workout: Workout) {
+        _viewModel = State(initialValue: ActivityDetailViewModel(workout: workout))
+    }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
+                // Loading indicator overlay
+                if viewModel.isLoadingDetails {
+                    ProgressView("載入詳細資料...")
+                        .padding()
+                        .background(Color.black.opacity(0.8))
+                        .cornerRadius(12)
+                        .padding(.top, 20)
+                }
+
                 // Header: Map Section (35% height)
                 mapSection
 
@@ -34,7 +47,7 @@ struct ActivityDetailView: View {
                         .padding(.horizontal, 16)
 
                     // Running Form Metrics (graceful degradation)
-                    if let metrics = workout.metrics {
+                    if let metrics = viewModel.workout.metrics {
                         runningFormSection(metrics: metrics)
                             .padding(.horizontal, 16)
                     }
@@ -47,15 +60,18 @@ struct ActivityDetailView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 VStack(spacing: 2) {
-                    Text(workout.endDate, style: .date)
+                    Text(viewModel.workout.endDate, style: .date)
                         .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .foregroundColor(.white)
 
-                    Text(workout.endDate, style: .time)
+                    Text(viewModel.workout.endDate, style: .time)
                         .font(.system(.caption2, design: .rounded))
                         .foregroundColor(.gray)
                 }
             }
+        }
+        .task {
+            await viewModel.loadDetailedDataIfNeeded()
         }
     }
 
@@ -64,7 +80,7 @@ struct ActivityDetailView: View {
     private var mapSection: some View {
         GeometryReader { geometry in
             ZStack {
-                if let route = workout.route {
+                if let route = viewModel.workout.route {
                     RouteMapView(coordinates: route)
                 } else {
                     // Placeholder when no route available
@@ -90,7 +106,7 @@ struct ActivityDetailView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "figure.run")
                                 .font(.caption)
-                            Text(String(format: "%.2f km", workout.distanceInKilometers))
+                            Text(String(format: "%.2f km", viewModel.workout.distanceInKilometers))
                                 .font(.system(.caption, design: .rounded, weight: .semibold))
                         }
                         .foregroundColor(.white)
@@ -116,7 +132,7 @@ struct ActivityDetailView: View {
                 SummaryStatCard(
                     icon: "figure.run",
                     label: "距離",
-                    value: String(format: "%.2f", workout.distanceInKilometers),
+                    value: String(format: "%.2f", viewModel.workout.distanceInKilometers),
                     unit: "km",
                     color: .neonGreen
                 )
@@ -124,7 +140,7 @@ struct ActivityDetailView: View {
                 SummaryStatCard(
                     icon: "clock",
                     label: "時間",
-                    value: workout.formattedDuration,
+                    value: viewModel.workout.formattedDuration,
                     unit: "",
                     color: .neonGreen
                 )
@@ -132,7 +148,7 @@ struct ActivityDetailView: View {
                 SummaryStatCard(
                     icon: "speedometer",
                     label: "配速",
-                    value: workout.formattedPace,
+                    value: viewModel.workout.formattedPace,
                     unit: "/km",
                     color: .neonGreen
                 )
@@ -140,7 +156,7 @@ struct ActivityDetailView: View {
 
             // Row 2
             HStack(spacing: 16) {
-                if let avgHR = workout.averageHeartRate {
+                if let avgHR = viewModel.workout.averageHeartRate {
                     SummaryStatCard(
                         icon: "heart.fill",
                         label: "平均心率",
@@ -152,7 +168,7 @@ struct ActivityDetailView: View {
                     EmptyStatCard(label: "心率")
                 }
 
-                if let calories = workout.activeEnergyBurned {
+                if let calories = viewModel.workout.activeEnergyBurned {
                     SummaryStatCard(
                         icon: "flame.fill",
                         label: "卡路里",
@@ -164,7 +180,7 @@ struct ActivityDetailView: View {
                     EmptyStatCard(label: "卡路里")
                 }
 
-                if let avgPower = workout.averagePower {
+                if let avgPower = viewModel.workout.averagePower {
                     SummaryStatCard(
                         icon: "bolt.fill",
                         label: "平均功率",
@@ -182,7 +198,7 @@ struct ActivityDetailView: View {
     // MARK: - Kilometer Splits Section
 
     private var kilometerSplitsSection: some View {
-        let splits = workout.calculateKilometerSplits()
+        let splits = viewModel.workout.calculateKilometerSplits()
 
         guard !splits.isEmpty else {
             return AnyView(EmptyView())
@@ -278,7 +294,7 @@ struct ActivityDetailView: View {
     private var chartsSection: some View {
         VStack(spacing: 24) {
             // Chart 1: Heart Rate
-            if let hrSamples = workout.heartRateSamples, !hrSamples.isEmpty {
+            if let hrSamples = viewModel.workout.heartRateSamples, !hrSamples.isEmpty {
                 ChartCard(title: "心率") {
                     heartRateChart(hrSamples: hrSamples)
                 }
@@ -287,7 +303,7 @@ struct ActivityDetailView: View {
             }
 
             // Chart 2: Pace
-            if let speedSamples = workout.speedSamples, !speedSamples.isEmpty {
+            if let speedSamples = viewModel.workout.speedSamples, !speedSamples.isEmpty {
                 ChartCard(title: "配速") {
                     paceChart(speedSamples: speedSamples)
                 }
@@ -296,7 +312,7 @@ struct ActivityDetailView: View {
             }
 
             // Chart 3: Power Distribution
-            if let powerSamples = workout.powerSamples, !powerSamples.isEmpty {
+            if let powerSamples = viewModel.workout.powerSamples, !powerSamples.isEmpty {
                 ChartCard(title: "功率分佈") {
                     powerDistributionChart(powerSamples: powerSamples)
                 }
@@ -305,7 +321,7 @@ struct ActivityDetailView: View {
             }
 
             // Chart 4: Elevation
-            if let elevationSamples = workout.elevationSamples, !elevationSamples.isEmpty {
+            if let elevationSamples = viewModel.workout.elevationSamples, !elevationSamples.isEmpty {
                 ChartCard(title: "高度變化") {
                     elevationChart(elevationSamples: elevationSamples)
                 }
@@ -314,7 +330,7 @@ struct ActivityDetailView: View {
             }
 
             // Chart 5: Cadence
-            if let cadenceSamples = workout.cadenceSamples, !cadenceSamples.isEmpty {
+            if let cadenceSamples = viewModel.workout.cadenceSamples, !cadenceSamples.isEmpty {
                 ChartCard(title: "步頻") {
                     cadenceChart(cadenceSamples: cadenceSamples)
                 }
@@ -323,7 +339,7 @@ struct ActivityDetailView: View {
             }
 
             // Chart 6: Vertical Oscillation
-            if let voSamples = workout.verticalOscillationSamples, !voSamples.isEmpty {
+            if let voSamples = viewModel.workout.verticalOscillationSamples, !voSamples.isEmpty {
                 ChartCard(title: "垂直振幅") {
                     verticalOscillationChart(voSamples: voSamples)
                 }
@@ -332,7 +348,7 @@ struct ActivityDetailView: View {
             }
 
             // Chart 7: Ground Contact Time
-            if let gctSamples = workout.groundContactTimeSamples, !gctSamples.isEmpty {
+            if let gctSamples = viewModel.workout.groundContactTimeSamples, !gctSamples.isEmpty {
                 ChartCard(title: "觸地時間") {
                     groundContactTimeChart(gctSamples: gctSamples)
                 }
@@ -341,7 +357,7 @@ struct ActivityDetailView: View {
             }
 
             // Chart 8: Stride Length
-            if let strideSamples = workout.strideLengthSamples, !strideSamples.isEmpty {
+            if let strideSamples = viewModel.workout.strideLengthSamples, !strideSamples.isEmpty {
                 ChartCard(title: "步長") {
                     strideLengthChart(strideSamples: strideSamples)
                 }
@@ -352,301 +368,453 @@ struct ActivityDetailView: View {
     }
 
     private func heartRateChart(hrSamples: [HeartRateSample]) -> some View {
-        Chart {
-            ForEach(hrSamples.prefix(100)) { sample in
-                let elapsed = sample.timestamp.timeIntervalSince(workout.startDate)
-                LineMark(
-                    x: .value("Time", elapsed),
-                    y: .value("Heart Rate", sample.value)
-                )
-                .foregroundStyle(Color.red)
-                .interpolationMethod(.catmullRom)
+        let avgHR = hrSamples.map(\.value).reduce(0, +) / Double(hrSamples.count)
+        let maxHR = hrSamples.map(\.value).max() ?? 0
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Chart {
+                ForEach(hrSamples) { sample in
+                    let distanceKm = calculateDistanceAtTime(sample.timestamp)
+                    LineMark(
+                        x: .value("Distance", distanceKm),
+                        y: .value("Heart Rate", sample.value)
+                    )
+                    .foregroundStyle(Color.red)
+                    .interpolationMethod(.catmullRom)
+                }
             }
-        }
-        .frame(height: 200)
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                if let seconds = value.as(TimeInterval.self) {
-                    AxisValueLabel {
-                        Text(formatElapsedTime(seconds))
-                            .font(.system(size: 10, design: .rounded))
-                            .foregroundStyle(.gray)
+            .frame(height: 200)
+            .chartXAxis {
+                AxisMarks { value in
+                    if let km = value.as(Double.self) {
+                        AxisValueLabel {
+                            Text(String(format: "%.1f", km))
+                                .font(.system(size: 10, design: .rounded))
+                                .foregroundStyle(.gray)
+                        }
                     }
                 }
             }
-        }
-        .chartYAxis {
-            AxisMarks { value in
-                AxisValueLabel()
-                    .font(.system(size: 10, design: .rounded))
-                    .foregroundStyle(.gray)
+            .chartXScale(domain: 0...viewModel.workout.distanceInKilometers)
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisValueLabel()
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundStyle(.gray)
+                }
+            }
+            .padding(.leading, 8)
+
+            // Statistics
+            HStack(spacing: 16) {
+                ChartStatItem(label: "平均心率", value: String(format: "%.0f", avgHR), unit: "bpm", color: .red)
+                ChartStatItem(label: "最大心率", value: String(format: "%.0f", maxHR), unit: "bpm", color: .red)
             }
         }
     }
 
     private func paceChart(speedSamples: [SpeedSample]) -> some View {
-        Chart {
-            ForEach(speedSamples.prefix(100)) { sample in
-                let elapsed = sample.timestamp.timeIntervalSince(workout.startDate)
-                LineMark(
-                    x: .value("Time", elapsed),
-                    y: .value("Pace", sample.pacePerKm)
-                )
-                .foregroundStyle(Color.neonGreen)
-                .interpolationMethod(.catmullRom)
+        // Filter out anomalous pace values
+        let filteredSamples = filterAnomalousPaceData(speedSamples)
+
+        // Calculate statistics
+        let avgPace = viewModel.workout.averagePace
+        let bestPace = filteredSamples.map(\.pacePerKm).min() ?? 0
+        let movingTime = viewModel.workout.formattedDuration
+        let elapsedTime = viewModel.workout.formattedDuration // 如果有停止時間，這裡應該不同
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Chart {
+                ForEach(filteredSamples) { sample in
+                    let distanceKm = calculateDistanceAtTime(sample.timestamp)
+                    LineMark(
+                        x: .value("Distance", distanceKm),
+                        y: .value("Pace", sample.pacePerKm)
+                    )
+                    .foregroundStyle(Color.neonGreen)
+                    .interpolationMethod(.catmullRom)
+                }
             }
-        }
-        .frame(height: 200)
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                if let seconds = value.as(TimeInterval.self) {
-                    AxisValueLabel {
-                        Text(formatElapsedTime(seconds))
-                            .font(.system(size: 10, design: .rounded))
-                            .foregroundStyle(.gray)
+            .frame(height: 200)
+            .chartXAxis {
+                AxisMarks { value in
+                    if let km = value.as(Double.self) {
+                        AxisValueLabel {
+                            Text(String(format: "%.1f", km))
+                                .font(.system(size: 10, design: .rounded))
+                                .foregroundStyle(.gray)
+                        }
                     }
                 }
             }
-        }
-        .chartYAxis {
-            AxisMarks { value in
-                if let paceSeconds = value.as(Double.self) {
-                    let minutes = Int(paceSeconds / 60)
-                    let seconds = Int(paceSeconds.truncatingRemainder(dividingBy: 60))
-                    AxisValueLabel {
-                        Text(String(format: "%d:%02d", minutes, seconds))
-                            .font(.system(size: 10, design: .rounded))
-                            .foregroundStyle(.gray)
+            .chartXScale(domain: 0...viewModel.workout.distanceInKilometers)
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    if let paceSeconds = value.as(Double.self) {
+                        let minutes = Int(paceSeconds / 60)
+                        let seconds = Int(paceSeconds.truncatingRemainder(dividingBy: 60))
+                        AxisValueLabel {
+                            Text(String(format: "%d:%02d", minutes, seconds))
+                                .font(.system(size: 10, design: .rounded))
+                                .foregroundStyle(.gray)
+                        }
                     }
                 }
             }
+            .chartYScale(domain: .automatic(includesZero: false, reversed: true))
+            .padding(.leading, 8)
+
+            // Statistics
+            VStack(spacing: 8) {
+                HStack(spacing: 16) {
+                    ChartStatItem(label: "平均配速", value: formatPace(avgPace), unit: "/km", color: .neonGreen)
+                    ChartStatItem(label: "最快配速", value: formatPace(bestPace), unit: "/km", color: .neonGreen)
+                }
+                HStack(spacing: 16) {
+                    ChartStatItem(label: "移動時間", value: movingTime, unit: "", color: .neonGreen)
+                    ChartStatItem(label: "經過時間", value: elapsedTime, unit: "", color: .neonGreen)
+                }
+            }
         }
-        .chartYScale(domain: .automatic(includesZero: false))
     }
 
     private func powerDistributionChart(powerSamples: [PowerSample]) -> some View {
-        Chart {
-            ForEach(powerSamples.prefix(100)) { sample in
-                let elapsed = sample.timestamp.timeIntervalSince(workout.startDate)
-                AreaMark(
-                    x: .value("Time", elapsed),
-                    y: .value("Power", sample.value)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color.yellow.opacity(0.6), Color.yellow.opacity(0.1)],
-                        startPoint: .top,
-                        endPoint: .bottom
+        let avgPower = powerSamples.map(\.value).reduce(0, +) / Double(powerSamples.count)
+        let maxPower = powerSamples.map(\.value).max() ?? 0
+        let totalWork = powerSamples.map(\.value).reduce(0, +) * (viewModel.workout.duration / Double(powerSamples.count)) // 簡化計算
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Chart {
+                ForEach(powerSamples) { sample in
+                    let distanceKm = calculateDistanceAtTime(sample.timestamp)
+                    AreaMark(
+                        x: .value("Distance", distanceKm),
+                        y: .value("Power", sample.value)
                     )
-                )
-                .interpolationMethod(.catmullRom)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.yellow.opacity(0.6), Color.yellow.opacity(0.1)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .interpolationMethod(.catmullRom)
+                }
             }
-        }
-        .frame(height: 200)
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                if let seconds = value.as(TimeInterval.self) {
-                    AxisValueLabel {
-                        Text(formatElapsedTime(seconds))
-                            .font(.system(size: 10, design: .rounded))
-                            .foregroundStyle(.gray)
+            .frame(height: 200)
+            .chartXAxis {
+                AxisMarks { value in
+                    if let km = value.as(Double.self) {
+                        AxisValueLabel {
+                            Text(String(format: "%.1f", km))
+                                .font(.system(size: 10, design: .rounded))
+                                .foregroundStyle(.gray)
+                        }
                     }
                 }
             }
-        }
-        .chartYAxis {
-            AxisMarks { value in
-                AxisValueLabel()
-                    .font(.system(size: 10, design: .rounded))
-                    .foregroundStyle(.gray)
+            .chartXScale(domain: 0...viewModel.workout.distanceInKilometers)
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisValueLabel()
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundStyle(.gray)
+                }
+            }
+            .padding(.leading, 8)
+
+            // Statistics
+            HStack(spacing: 16) {
+                ChartStatItem(label: "平均功率", value: String(format: "%.0f", avgPower), unit: "W", color: .yellow)
+                ChartStatItem(label: "總工作量", value: String(format: "%.0f", totalWork / 1000), unit: "kJ", color: .yellow)
+                ChartStatItem(label: "最大功率", value: String(format: "%.0f", maxPower), unit: "W", color: .yellow)
             }
         }
     }
 
     private func elevationChart(elevationSamples: [ElevationSample]) -> some View {
-        Chart {
-            ForEach(elevationSamples.prefix(100)) { sample in
-                let elapsed = sample.timestamp.timeIntervalSince(workout.startDate)
-                AreaMark(
-                    x: .value("Time", elapsed),
-                    y: .value("Elevation", sample.value)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color.brown.opacity(0.6), Color.brown.opacity(0.1)],
-                        startPoint: .top,
-                        endPoint: .bottom
+        let elevationGain = calculateElevationGain(elevationSamples)
+        let maxElevation = elevationSamples.map(\.value).max() ?? 0
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Chart {
+                ForEach(elevationSamples) { sample in
+                    let distanceKm = calculateDistanceAtTime(sample.timestamp)
+                    AreaMark(
+                        x: .value("Distance", distanceKm),
+                        y: .value("Elevation", sample.value)
                     )
-                )
-                .interpolationMethod(.catmullRom)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.brown.opacity(0.6), Color.brown.opacity(0.1)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .interpolationMethod(.catmullRom)
+                }
             }
-        }
-        .frame(height: 200)
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                if let seconds = value.as(TimeInterval.self) {
-                    AxisValueLabel {
-                        Text(formatElapsedTime(seconds))
-                            .font(.system(size: 10, design: .rounded))
-                            .foregroundStyle(.gray)
+            .frame(height: 200)
+            .chartXAxis {
+                AxisMarks { value in
+                    if let km = value.as(Double.self) {
+                        AxisValueLabel {
+                            Text(String(format: "%.1f", km))
+                                .font(.system(size: 10, design: .rounded))
+                                .foregroundStyle(.gray)
+                        }
                     }
                 }
             }
-        }
-        .chartYAxis {
-            AxisMarks { value in
-                AxisValueLabel()
-                    .font(.system(size: 10, design: .rounded))
-                    .foregroundStyle(.gray)
+            .chartXScale(domain: 0...viewModel.workout.distanceInKilometers)
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisValueLabel()
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundStyle(.gray)
+                }
+            }
+            .padding(.leading, 8)
+
+            // Statistics
+            HStack(spacing: 16) {
+                ChartStatItem(label: "爬升海拔", value: String(format: "%.0f", elevationGain), unit: "m", color: .brown)
+                ChartStatItem(label: "最高海拔", value: String(format: "%.0f", maxElevation), unit: "m", color: .brown)
             }
         }
     }
 
     private func cadenceChart(cadenceSamples: [CadenceSample]) -> some View {
-        Chart {
-            ForEach(cadenceSamples.prefix(100)) { sample in
-                let elapsed = sample.timestamp.timeIntervalSince(workout.startDate)
-                LineMark(
-                    x: .value("Time", elapsed),
-                    y: .value("Cadence", sample.value)
-                )
-                .foregroundStyle(Color.cyan)
-                .interpolationMethod(.catmullRom)
+        let avgCadence = cadenceSamples.map(\.value).reduce(0, +) / Double(cadenceSamples.count)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Chart {
+                ForEach(cadenceSamples) { sample in
+                    let distanceKm = calculateDistanceAtTime(sample.timestamp)
+                    LineMark(
+                        x: .value("Distance", distanceKm),
+                        y: .value("Cadence", sample.value)
+                    )
+                    .foregroundStyle(Color.cyan)
+                    .interpolationMethod(.catmullRom)
+                }
             }
-        }
-        .frame(height: 200)
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                if let seconds = value.as(TimeInterval.self) {
-                    AxisValueLabel {
-                        Text(formatElapsedTime(seconds))
-                            .font(.system(size: 10, design: .rounded))
-                            .foregroundStyle(.gray)
+            .frame(height: 200)
+            .chartXAxis {
+                AxisMarks { value in
+                    if let km = value.as(Double.self) {
+                        AxisValueLabel {
+                            Text(String(format: "%.1f", km))
+                                .font(.system(size: 10, design: .rounded))
+                                .foregroundStyle(.gray)
+                        }
                     }
                 }
             }
-        }
-        .chartYAxis {
-            AxisMarks { value in
-                AxisValueLabel()
-                    .font(.system(size: 10, design: .rounded))
-                    .foregroundStyle(.gray)
+            .chartXScale(domain: 0...viewModel.workout.distanceInKilometers)
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisValueLabel()
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundStyle(.gray)
+                }
             }
+            .padding(.leading, 8)
+
+            // Statistics
+            ChartStatItem(label: "平均步頻", value: String(format: "%.0f", avgCadence), unit: "spm", color: .cyan)
         }
     }
 
     private func verticalOscillationChart(voSamples: [VerticalOscillationSample]) -> some View {
-        Chart {
-            ForEach(voSamples.prefix(100)) { sample in
-                let elapsed = sample.timestamp.timeIntervalSince(workout.startDate)
-                LineMark(
-                    x: .value("Time", elapsed),
-                    y: .value("Vertical Oscillation", sample.value)
-                )
-                .foregroundStyle(Color.purple)
-                .interpolationMethod(.catmullRom)
+        let avgVO = voSamples.map(\.value).reduce(0, +) / Double(voSamples.count)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Chart {
+                ForEach(voSamples) { sample in
+                    let distanceKm = calculateDistanceAtTime(sample.timestamp)
+                    LineMark(
+                        x: .value("Distance", distanceKm),
+                        y: .value("Vertical Oscillation", sample.value)
+                    )
+                    .foregroundStyle(Color.purple)
+                    .interpolationMethod(.catmullRom)
+                }
             }
-        }
-        .frame(height: 200)
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                if let seconds = value.as(TimeInterval.self) {
-                    AxisValueLabel {
-                        Text(formatElapsedTime(seconds))
-                            .font(.system(size: 10, design: .rounded))
-                            .foregroundStyle(.gray)
+            .frame(height: 200)
+            .chartXAxis {
+                AxisMarks { value in
+                    if let km = value.as(Double.self) {
+                        AxisValueLabel {
+                            Text(String(format: "%.1f", km))
+                                .font(.system(size: 10, design: .rounded))
+                                .foregroundStyle(.gray)
+                        }
                     }
                 }
             }
-        }
-        .chartYAxis {
-            AxisMarks { value in
-                AxisValueLabel()
-                    .font(.system(size: 10, design: .rounded))
-                    .foregroundStyle(.gray)
+            .chartXScale(domain: 0...viewModel.workout.distanceInKilometers)
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisValueLabel()
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundStyle(.gray)
+                }
             }
+            .padding(.leading, 8)
+
+            // Statistics
+            ChartStatItem(label: "平均振幅", value: String(format: "%.1f", avgVO), unit: "cm", color: .purple)
         }
     }
 
     private func groundContactTimeChart(gctSamples: [GroundContactTimeSample]) -> some View {
-        Chart {
-            ForEach(gctSamples.prefix(100)) { sample in
-                let elapsed = sample.timestamp.timeIntervalSince(workout.startDate)
-                LineMark(
-                    x: .value("Time", elapsed),
-                    y: .value("Ground Contact Time", sample.value)
-                )
-                .foregroundStyle(Color.orange)
-                .interpolationMethod(.catmullRom)
+        let avgGCT = gctSamples.map(\.value).reduce(0, +) / Double(gctSamples.count)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Chart {
+                ForEach(gctSamples) { sample in
+                    let distanceKm = calculateDistanceAtTime(sample.timestamp)
+                    LineMark(
+                        x: .value("Distance", distanceKm),
+                        y: .value("Ground Contact Time", sample.value)
+                    )
+                    .foregroundStyle(Color.orange)
+                    .interpolationMethod(.catmullRom)
+                }
             }
-        }
-        .frame(height: 200)
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                if let seconds = value.as(TimeInterval.self) {
-                    AxisValueLabel {
-                        Text(formatElapsedTime(seconds))
-                            .font(.system(size: 10, design: .rounded))
-                            .foregroundStyle(.gray)
+            .frame(height: 200)
+            .chartXAxis {
+                AxisMarks { value in
+                    if let km = value.as(Double.self) {
+                        AxisValueLabel {
+                            Text(String(format: "%.1f", km))
+                                .font(.system(size: 10, design: .rounded))
+                                .foregroundStyle(.gray)
+                        }
                     }
                 }
             }
-        }
-        .chartYAxis {
-            AxisMarks { value in
-                AxisValueLabel()
-                    .font(.system(size: 10, design: .rounded))
-                    .foregroundStyle(.gray)
+            .chartXScale(domain: 0...viewModel.workout.distanceInKilometers)
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisValueLabel()
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundStyle(.gray)
+                }
             }
+            .padding(.leading, 8)
+
+            // Statistics
+            ChartStatItem(label: "平均時間", value: String(format: "%.0f", avgGCT), unit: "ms", color: .orange)
         }
     }
 
     private func strideLengthChart(strideSamples: [StrideLengthSample]) -> some View {
-        Chart {
-            ForEach(strideSamples.prefix(100)) { sample in
-                let elapsed = sample.timestamp.timeIntervalSince(workout.startDate)
-                LineMark(
-                    x: .value("Time", elapsed),
-                    y: .value("Stride Length", sample.value)
-                )
-                .foregroundStyle(Color.green)
-                .interpolationMethod(.catmullRom)
+        let avgStride = strideSamples.map(\.value).reduce(0, +) / Double(strideSamples.count)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Chart {
+                ForEach(strideSamples) { sample in
+                    let distanceKm = calculateDistanceAtTime(sample.timestamp)
+                    LineMark(
+                        x: .value("Distance", distanceKm),
+                        y: .value("Stride Length", sample.value)
+                    )
+                    .foregroundStyle(Color.green)
+                    .interpolationMethod(.catmullRom)
+                }
             }
-        }
-        .frame(height: 200)
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                if let seconds = value.as(TimeInterval.self) {
-                    AxisValueLabel {
-                        Text(formatElapsedTime(seconds))
-                            .font(.system(size: 10, design: .rounded))
-                            .foregroundStyle(.gray)
+            .frame(height: 200)
+            .chartXAxis {
+                AxisMarks { value in
+                    if let km = value.as(Double.self) {
+                        AxisValueLabel {
+                            Text(String(format: "%.1f", km))
+                                .font(.system(size: 10, design: .rounded))
+                                .foregroundStyle(.gray)
+                        }
                     }
                 }
             }
-        }
-        .chartYAxis {
-            AxisMarks { value in
-                AxisValueLabel()
-                    .font(.system(size: 10, design: .rounded))
-                    .foregroundStyle(.gray)
+            .chartXScale(domain: 0...viewModel.workout.distanceInKilometers)
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisValueLabel()
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundStyle(.gray)
+                }
             }
+            .padding(.leading, 8)
+
+            // Statistics
+            ChartStatItem(label: "平均步長", value: String(format: "%.2f", avgStride), unit: "m", color: .green)
         }
     }
 
     // MARK: - Helper Functions
 
-    /// Formats elapsed time from workout start as HH:MM:SS or MM:SS
-    private func formatElapsedTime(_ seconds: TimeInterval) -> String {
-        let hours = Int(seconds) / 3600
-        let minutes = (Int(seconds) % 3600) / 60
-        let secs = Int(seconds) % 60
+    /// Calculates the approximate distance (in kilometers) at a specific timestamp during the workout
+    /// Uses linear interpolation based on the workout's total distance and duration
+    private func calculateDistanceAtTime(_ timestamp: Date) -> Double {
+        let elapsed = timestamp.timeIntervalSince(viewModel.workout.startDate)
+        let progress = elapsed / viewModel.workout.duration
+        return progress * viewModel.workout.distanceInKilometers
+    }
 
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
+    /// Filters out anomalous pace data points that would distort the chart
+    /// Removes samples with unrealistic pace values (too fast or too slow)
+    private func filterAnomalousPaceData(_ samples: [SpeedSample]) -> [SpeedSample] {
+        guard !samples.isEmpty else { return samples }
+
+        // Calculate median pace for robust central tendency
+        let paces = samples.map { $0.pacePerKm }.sorted()
+        let medianPace: Double
+        if paces.count % 2 == 0 {
+            medianPace = (paces[paces.count / 2 - 1] + paces[paces.count / 2]) / 2.0
         } else {
-            return String(format: "%d:%02d", minutes, secs)
+            medianPace = paces[paces.count / 2]
         }
+
+        // Define reasonable pace bounds (in seconds per km)
+        // Typical running pace: 3:00/km (180s) to 12:00/km (720s)
+        let minReasonablePace: Double = 150  // Faster than 2:30/km is likely error
+        let maxReasonablePace: Double = 900  // Slower than 15:00/km is likely error
+
+        // Also use median-based filtering to catch outliers
+        // Allow pace within 3x of median (catches walking/stopping)
+        let medianBasedMax = medianPace * 3.0
+        let medianBasedMin = medianPace / 2.0
+
+        // Combine both filters
+        let effectiveMax = min(maxReasonablePace, medianBasedMax)
+        let effectiveMin = max(minReasonablePace, medianBasedMin)
+
+        return samples.filter { sample in
+            let pace = sample.pacePerKm
+            return pace >= effectiveMin && pace <= effectiveMax
+        }
+    }
+
+    /// Formats pace in seconds to MM:SS string
+    private func formatPace(_ paceSeconds: Double) -> String {
+        let minutes = Int(paceSeconds / 60)
+        let seconds = Int(paceSeconds.truncatingRemainder(dividingBy: 60))
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+
+    /// Calculates total elevation gain from elevation samples
+    private func calculateElevationGain(_ samples: [ElevationSample]) -> Double {
+        guard samples.count > 1 else { return 0 }
+
+        var totalGain: Double = 0
+        for i in 1..<samples.count {
+            let elevationChange = samples[i].value - samples[i-1].value
+            if elevationChange > 0 {
+                totalGain += elevationChange
+            }
+        }
+        return totalGain
     }
 
     // MARK: - Running Form Section (Graceful Degradation)
@@ -893,6 +1061,45 @@ struct EmptyChartCard: View {
         .padding(20)
         .background(Color.cardBackground.opacity(0.5))
         .cornerRadius(16)
+    }
+}
+
+/// Chart statistic item for displaying key metrics below charts
+struct ChartStatItem: View {
+    let label: String
+    let value: String
+    let unit: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.system(size: 10, design: .rounded))
+                    .foregroundColor(.gray)
+
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text(value)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+
+                    if !unit.isEmpty {
+                        Text(unit)
+                            .font(.system(size: 10, design: .rounded))
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .background(Color.cardBackground.opacity(0.5))
+        .cornerRadius(8)
     }
 }
 

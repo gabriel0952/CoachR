@@ -8,17 +8,17 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
-                    // Row 1: Body Battery + Weekly Volume (2 columns)
-                    HStack(spacing: 16) {
-                        BodyBatteryCard(
-                            rhr: viewModel.restingHeartRate,
-                            hrv: viewModel.heartRateVariability
-                        )
-                        WeeklyVolumeCard(workouts: viewModel.workouts)
-                    }
+                VStack(spacing: 20) {
+                    // Body Battery Card (Full Width)
+                    BodyBatteryCard(
+                        rhr: viewModel.restingHeartRate,
+                        hrv: viewModel.heartRateVariability
+                    )
 
-                    // Row 2: Latest Run Card (Full Width)
+                    // Weekly Volume Card (Full Width)
+                    WeeklyVolumeCard(workouts: viewModel.workouts)
+
+                    // Latest Run Card (Full Width)
                     if let latestWorkout = viewModel.workouts.first {
                         NavigationLink {
                             ActivityDetailView(workout: latestWorkout)
@@ -72,90 +72,80 @@ struct BodyBatteryCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             // Header
             Text("體能狀態")
-                .font(.system(.headline, design: .rounded))
+                .font(.system(.title3, design: .rounded, weight: .semibold))
                 .foregroundColor(.white)
 
-            Spacer()
-
-            // Main Score Display
-            HStack(alignment: .center, spacing: 16) {
+            // Main Content
+            HStack(alignment: .center, spacing: 24) {
                 // Circular Progress Ring
                 ZStack {
                     Circle()
-                        .stroke(Color.gray.opacity(0.3), lineWidth: 10)
-                        .frame(width: 80, height: 80)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 12)
+                        .frame(width: 100, height: 100)
 
                     Circle()
                         .trim(from: 0, to: CGFloat(readinessScore) / 100.0)
                         .stroke(
                             readinessScore > 70 ? Color.neonGreen : Color.warningOrange,
-                            style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                            style: StrokeStyle(lineWidth: 12, lineCap: .round)
                         )
-                        .frame(width: 80, height: 80)
+                        .frame(width: 100, height: 100)
                         .rotationEffect(.degrees(-90))
                         .animation(.easeInOut(duration: 1.0), value: readinessScore)
 
-                    Text("\(readinessScore)")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                    VStack(spacing: 2) {
+                        Text("\(readinessScore)")
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+
+                        Text(readinessScore > 70 ? "準備充分" : "建議休息")
+                            .font(.system(size: 9, design: .rounded))
+                            .foregroundColor(.gray)
+                    }
                 }
 
+                Spacer()
+
                 // Metrics
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .trailing, spacing: 16) {
                     if let rhr = rhr {
                         MetricRow(
                             icon: "heart.fill",
-                            label: "RHR",
+                            label: "靜止心率",
                             value: "\(Int(rhr))",
                             unit: "bpm"
                         )
                     } else {
                         MetricRow(
                             icon: "heart.fill",
-                            label: "RHR",
+                            label: "靜止心率",
                             value: "--",
-                            unit: ""
+                            unit: "bpm"
                         )
                     }
 
                     if let hrv = hrv {
                         MetricRow(
                             icon: "waveform.path.ecg",
-                            label: "HRV",
+                            label: "心率變異",
                             value: "\(Int(hrv))",
                             unit: "ms"
                         )
                     } else {
                         MetricRow(
                             icon: "waveform.path.ecg",
-                            label: "HRV",
+                            label: "心率變異",
                             value: "--",
-                            unit: ""
+                            unit: "ms"
                         )
                     }
                 }
             }
-
-            Spacer()
-
-            // Status Text
-            HStack {
-                Circle()
-                    .fill(readinessScore > 70 ? Color.neonGreen : Color.warningOrange)
-                    .frame(width: 6, height: 6)
-
-                Text(readinessScore > 70 ? "準備充分" : "建議休息")
-                    .font(.system(.caption, design: .rounded))
-                    .foregroundColor(.gray)
-
-                Spacer()
-            }
         }
-        .padding(16)
-        .frame(height: 240)
+        .padding(20)
         .background(Color.cardBackground)
         .cornerRadius(16)
     }
@@ -207,25 +197,23 @@ struct WeeklyVolumeCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("本週跑量")
-                .font(.system(.headline, design: .rounded))
-                .foregroundColor(.white)
+        VStack(alignment: .leading, spacing: 16) {
+            // Header with total
+            VStack(alignment: .leading, spacing: 8) {
+                Text("本週跑量")
+                    .font(.system(.title3, design: .rounded, weight: .semibold))
+                    .foregroundColor(.white)
 
-            Spacer()
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(String(format: "%.1f", totalDistance))
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                        .foregroundColor(.neonGreen)
 
-            // Total Distance
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(String(format: "%.1f", totalDistance))
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
-                    .foregroundColor(.neonGreen)
-
-                Text("km")
-                    .font(.system(.title3, design: .rounded))
-                    .foregroundColor(.gray)
+                    Text("km")
+                        .font(.system(.title2, design: .rounded))
+                        .foregroundColor(.gray)
+                }
             }
-
-            Spacer()
 
             // Mini Bar Chart
             Chart {
@@ -234,22 +222,21 @@ struct WeeklyVolumeCard: View {
                         x: .value("Day", dayLabel(for: index)),
                         y: .value("Distance", distance)
                     )
-                    .foregroundStyle(distance > 0 ? Color.neonGreen : Color.gray.opacity(0.3))
+                    .foregroundStyle(distance > 0 ? Color.neonGreen : Color.gray.opacity(0.2))
                     .cornerRadius(4)
                 }
             }
-            .frame(height: 80)
+            .frame(height: 100)
             .chartXAxis {
                 AxisMarks(values: .automatic) { _ in
                     AxisValueLabel()
-                        .font(.system(size: 10, design: .rounded))
+                        .font(.system(size: 11, design: .rounded))
                         .foregroundStyle(.gray)
                 }
             }
             .chartYAxis(.hidden)
         }
-        .padding(16)
-        .frame(height: 240)
+        .padding(20)
         .background(Color.cardBackground)
         .cornerRadius(16)
     }
@@ -259,7 +246,8 @@ struct WeeklyVolumeCard: View {
     }
 
     private func calculateWeeklyDistances() -> [Double] {
-        let calendar = Calendar.current
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2 // Set Monday as first day of week
         let today = Date()
 
         // Get start of week (Monday)
@@ -270,12 +258,13 @@ struct WeeklyVolumeCard: View {
         var dailyDistances: [Double] = Array(repeating: 0.0, count: 7)
 
         for workout in workouts {
-            guard let dayIndex = calendar.dateComponents([.day], from: weekStart, to: workout.endDate).day,
-                  dayIndex >= 0, dayIndex < 7 else {
+            // Calculate which day of the week (0 = Monday, 6 = Sunday)
+            guard let daysSinceStart = calendar.dateComponents([.day], from: weekStart, to: workout.endDate).day,
+                  daysSinceStart >= 0, daysSinceStart < 7 else {
                 continue
             }
 
-            dailyDistances[dayIndex] += workout.distanceInKilometers
+            dailyDistances[daysSinceStart] += workout.distanceInKilometers
         }
 
         return dailyDistances
@@ -288,65 +277,82 @@ struct LatestRunCard: View {
     let workout: Workout
 
     var body: some View {
-        HStack(spacing: 16) {
-            // Left: Mini Map Snapshot
-            if let route = workout.route {
-                MiniMapSnapshot(coordinates: route)
-                    .frame(width: 100, height: 100)
-                    .cornerRadius(12)
-            } else {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(width: 100, height: 100)
-                    .overlay(
-                        Image(systemName: "map")
-                            .foregroundColor(.gray)
-                            .font(.title)
-                    )
-            }
-
-            // Middle: Workout Details
-            VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
+            HStack {
                 Text("最近一次跑步")
-                    .font(.system(.caption, design: .rounded))
-                    .foregroundColor(.gray)
-
-                Text(workout.endDate, style: .date)
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.system(.title3, design: .rounded, weight: .semibold))
                     .foregroundColor(.white)
 
                 Spacer()
 
-                // Stats Grid
-                HStack(spacing: 16) {
-                    StatItem(
-                        label: "距離",
-                        value: String(format: "%.2f", workout.distanceInKilometers),
-                        unit: "km"
-                    )
-
-                    StatItem(
-                        label: "時間",
-                        value: workout.formattedDuration,
-                        unit: ""
-                    )
-
-                    StatItem(
-                        label: "配速",
-                        value: workout.formattedPace,
-                        unit: "/km"
-                    )
-                }
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.gray)
+                    .font(.body)
             }
 
-            Spacer()
-
-            // Right: Chevron
-            Image(systemName: "chevron.right")
+            // Date
+            Text(workout.endDate, style: .date)
+                .font(.system(.subheadline, design: .rounded))
                 .foregroundColor(.gray)
-                .font(.body)
+
+            // Map (if available)
+            if let route = workout.route {
+                MiniMapSnapshot(coordinates: route)
+                    .frame(height: 120)
+                    .frame(maxWidth: .infinity)
+                    .cornerRadius(12)
+            }
+
+            // Stats Grid - 3 columns
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("距離")
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundColor(.gray)
+
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(String(format: "%.2f", workout.distanceInKilometers))
+                            .font(.system(size: 20, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+
+                        Text("km")
+                            .font(.system(size: 11, design: .rounded))
+                            .foregroundColor(.gray)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("時間")
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundColor(.gray)
+
+                    Text(workout.formattedDuration)
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("配速")
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundColor(.gray)
+
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(workout.formattedPace)
+                            .font(.system(size: 20, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+
+                        Text("/km")
+                            .font(.system(size: 11, design: .rounded))
+                            .foregroundColor(.gray)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
-        .padding(16)
+        .padding(20)
         .background(Color.cardBackground)
         .cornerRadius(16)
     }
@@ -361,44 +367,22 @@ struct MiniMapSnapshot: View {
         // Placeholder for map rendering
         // In production, you would use MapKit with MKMapSnapshotter
         ZStack {
-            Color.gray.opacity(0.2)
+            // Gradient background to simulate map
+            LinearGradient(
+                colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.1)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
 
-            VStack {
+            // Route path indicator
+            VStack(spacing: 8) {
                 Image(systemName: "map.fill")
-                    .font(.title)
-                    .foregroundColor(.neonGreen.opacity(0.7))
+                    .font(.system(size: 28))
+                    .foregroundColor(.neonGreen.opacity(0.6))
 
-                Text("\(String(format: "%.1f", Double(coordinates.count) / 100.0))km")
-                    .font(.caption2)
+                Text("GPS 路徑已記錄")
+                    .font(.system(size: 11, design: .rounded))
                     .foregroundColor(.gray)
-            }
-        }
-    }
-}
-
-// MARK: - Stat Item Component
-
-struct StatItem: View {
-    let label: String
-    let value: String
-    let unit: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.system(size: 10, design: .rounded))
-                .foregroundColor(.gray)
-
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(value)
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
-
-                if !unit.isEmpty {
-                    Text(unit)
-                        .font(.system(size: 10, design: .rounded))
-                        .foregroundColor(.gray)
-                }
             }
         }
     }
