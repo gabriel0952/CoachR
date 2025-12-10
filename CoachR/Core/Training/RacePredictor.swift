@@ -43,12 +43,18 @@ struct RacePredictor {
         }
     }
 
+    /// Result containing predictions and the seed workout used
+    struct PredictionResult {
+        let predictions: [RacePrediction]
+        let seedWorkout: Workout
+    }
+
     // MARK: - Public Interface
 
     /// Generates race predictions based on recent workout history
     /// - Parameter workouts: Array of workouts to analyze
-    /// - Returns: Array of race predictions, or nil if insufficient data
-    static func predictRaces(from workouts: [Workout]) -> [RacePrediction]? {
+    /// - Returns: Prediction result with predictions and seed workout, or nil if insufficient data
+    static func predictRaces(from workouts: [Workout]) -> PredictionResult? {
         guard let seedRun = findBestRecentRun(from: workouts) else {
             return nil
         }
@@ -71,7 +77,7 @@ struct RacePredictor {
             ))
         }
 
-        return predictions
+        return PredictionResult(predictions: predictions, seedWorkout: seedRun)
     }
 
     // MARK: - Private Helper Methods

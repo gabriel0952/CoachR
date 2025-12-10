@@ -13,6 +13,7 @@ class DashboardViewModel {
     var heartRateVariability: Double?
     var vo2Max: Double?
     var racePredictions: [RacePredictor.RacePrediction]?
+    var predictionSeedWorkout: Workout?
     var errorMessage: String?
     var isLoading = false
 
@@ -75,7 +76,13 @@ class DashboardViewModel {
             self.workouts = basicWorkouts
 
             // Calculate race predictions based on recent workout history
-            self.racePredictions = RacePredictor.predictRaces(from: basicWorkouts)
+            if let result = RacePredictor.predictRaces(from: basicWorkouts) {
+                self.racePredictions = result.predictions
+                self.predictionSeedWorkout = result.seedWorkout
+            } else {
+                self.racePredictions = nil
+                self.predictionSeedWorkout = nil
+            }
         } catch {
             errorMessage = (error as? HKError)?.errorDescription ?? error.localizedDescription
         }

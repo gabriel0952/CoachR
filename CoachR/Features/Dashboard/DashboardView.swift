@@ -20,7 +20,10 @@ struct DashboardView: View {
 
                     // Race Predictor Card (Full Width)
                     if let predictions = viewModel.racePredictions {
-                        RacePredictorCard(predictions: predictions)
+                        RacePredictorCard(
+                            predictions: predictions,
+                            seedWorkout: viewModel.predictionSeedWorkout
+                        )
                     }
 
                     // Latest Run Card (Full Width)
@@ -80,7 +83,8 @@ struct BodyBatteryCard: View {
         VStack(alignment: .leading, spacing: 16) {
             // Header
             Text("體能狀態")
-                .font(.system(.title3, design: .rounded, weight: .semibold))
+                .font(.system(.title3, design: .rounded))
+                .fontWeight(.semibold)
                 .foregroundColor(.white)
 
             // Main Content
@@ -206,7 +210,8 @@ struct WeeklyVolumeCard: View {
             // Header with total
             VStack(alignment: .leading, spacing: 8) {
                 Text("本週跑量")
-                    .font(.system(.title3, design: .rounded, weight: .semibold))
+                    .font(.system(.title3, design: .rounded))
+                    .fontWeight(.semibold)
                     .foregroundColor(.white)
 
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -280,6 +285,7 @@ struct WeeklyVolumeCard: View {
 
 struct RacePredictorCard: View {
     let predictions: [RacePredictor.RacePrediction]
+    let seedWorkout: Workout?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -290,10 +296,34 @@ struct RacePredictorCard: View {
                     .font(.title3)
 
                 Text("完賽預測")
-                    .font(.system(.title3, design: .rounded, weight: .semibold))
+                    .font(.system(.title3, design: .rounded))
+                    .fontWeight(.semibold)
                     .foregroundColor(.white)
 
                 Spacer()
+            }
+
+            // Prediction Source Info
+            if let seedWorkout = seedWorkout {
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 11))
+                        .foregroundColor(.gray)
+
+                    Text("基於 \(seedWorkout.endDate, style: .date) 的 \(String(format: "%.2f", seedWorkout.distanceInKilometers))km 跑步")
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundColor(.gray)
+
+                    Spacer()
+
+                    Text("近 8 週訓練")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundColor(.neonGreen.opacity(0.8))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.neonGreen.opacity(0.15))
+                        .cornerRadius(6)
+                }
             }
 
             // Predictions Grid - 2x2
@@ -351,7 +381,8 @@ struct LatestRunCard: View {
             // Header
             HStack {
                 Text("最近一次跑步")
-                    .font(.system(.title3, design: .rounded, weight: .semibold))
+                    .font(.system(.title3, design: .rounded))
+                    .fontWeight(.semibold)
                     .foregroundColor(.white)
 
                 Spacer()
@@ -520,7 +551,8 @@ struct EmptyWorkoutsCard: View {
                 .foregroundColor(.gray)
 
             Text("尚無運動紀錄")
-                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                .font(.system(.subheadline, design: .rounded))
+                .fontWeight(.semibold)
                 .foregroundColor(.white)
 
             Text("開始跑步來記錄你的第一次運動")
