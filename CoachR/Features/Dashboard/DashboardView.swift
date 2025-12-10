@@ -18,6 +18,11 @@ struct DashboardView: View {
                     // Weekly Volume Card (Full Width)
                     WeeklyVolumeCard(workouts: viewModel.workouts)
 
+                    // Race Predictor Card (Full Width)
+                    if let predictions = viewModel.racePredictions {
+                        RacePredictorCard(predictions: predictions)
+                    }
+
                     // Latest Run Card (Full Width)
                     if let latestWorkout = viewModel.workouts.first {
                         NavigationLink {
@@ -268,6 +273,71 @@ struct WeeklyVolumeCard: View {
         }
 
         return dailyDistances
+    }
+}
+
+// MARK: - Race Predictor Card
+
+struct RacePredictorCard: View {
+    let predictions: [RacePredictor.RacePrediction]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
+            HStack {
+                Image(systemName: "flag.checkered")
+                    .foregroundColor(.neonGreen)
+                    .font(.title3)
+
+                Text("完賽預測")
+                    .font(.system(.title3, design: .rounded, weight: .semibold))
+                    .foregroundColor(.white)
+
+                Spacer()
+            }
+
+            // Predictions Grid - 2x2
+            VStack(spacing: 12) {
+                // Row 1: 5K and 10K
+                HStack(spacing: 12) {
+                    ForEach(predictions.prefix(2)) { prediction in
+                        RacePredictionItem(prediction: prediction)
+                    }
+                }
+
+                // Row 2: Half and Full Marathon
+                HStack(spacing: 12) {
+                    ForEach(predictions.suffix(2)) { prediction in
+                        RacePredictionItem(prediction: prediction)
+                    }
+                }
+            }
+        }
+        .padding(20)
+        .background(Color.cardBackground)
+        .cornerRadius(16)
+    }
+}
+
+struct RacePredictionItem: View {
+    let prediction: RacePredictor.RacePrediction
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Distance label
+            Text(prediction.distance.displayName)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundColor(.gray)
+
+            // Predicted time
+            Text(prediction.formattedTime)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundColor(.neonGreen)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.black.opacity(0.3))
+        .cornerRadius(12)
     }
 }
 

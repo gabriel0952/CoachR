@@ -19,15 +19,6 @@ struct ActivityDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // Loading indicator overlay
-                if viewModel.isLoadingDetails {
-                    ProgressView("載入詳細資料...")
-                        .padding()
-                        .background(Color.black.opacity(0.8))
-                        .cornerRadius(12)
-                        .padding(.top, 20)
-                }
-
                 // Header: Map Section (35% height)
                 mapSection
 
@@ -67,6 +58,27 @@ struct ActivityDetailView: View {
                     Text(viewModel.workout.endDate, style: .time)
                         .font(.system(.caption2, design: .rounded))
                         .foregroundColor(.gray)
+                }
+            }
+        }
+        .overlay {
+            if viewModel.isLoadingDetails {
+                ZStack {
+                    Color.black.opacity(0.5)
+                        .ignoresSafeArea()
+
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .neonGreen))
+                            .scaleEffect(1.5)
+
+                        Text("載入詳細資料...")
+                            .font(.system(.body, design: .rounded))
+                            .foregroundColor(.white)
+                    }
+                    .padding(32)
+                    .background(Color.cardBackground)
+                    .cornerRadius(16)
                 }
             }
         }

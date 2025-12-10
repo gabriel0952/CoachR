@@ -12,6 +12,7 @@ class DashboardViewModel {
     var restingHeartRate: Double?
     var heartRateVariability: Double?
     var vo2Max: Double?
+    var racePredictions: [RacePredictor.RacePrediction]?
     var errorMessage: String?
     var isLoading = false
 
@@ -65,13 +66,16 @@ class DashboardViewModel {
     /// Fetch basic workout data (fast) - only what Dashboard needs
     private func fetchBasicWorkouts() async {
         do {
-            // Only fetch recent 10 workouts for Dashboard
-            let hkWorkouts = try await hkManager.fetchRunningWorkouts(limit: 10)
+            // Fetch last 60 workouts (approximately 8 weeks worth) for race predictions
+            let hkWorkouts = try await hkManager.fetchRunningWorkouts(limit: 60)
 
             // Convert to basic Workout objects (no detailed samples)
             let basicWorkouts = hkWorkouts.map { Workout(from: $0) }
 
             self.workouts = basicWorkouts
+
+            // Calculate race predictions based on recent workout history
+            self.racePredictions = RacePredictor.predictRaces(from: basicWorkouts)
         } catch {
             errorMessage = (error as? HKError)?.errorDescription ?? error.localizedDescription
         }

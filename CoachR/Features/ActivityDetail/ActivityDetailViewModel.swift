@@ -25,8 +25,10 @@ class ActivityDetailViewModel {
         }
 
         isLoadingDetails = true
+        defer {
+            isLoadingDetails = false
+        }
         await loadDetailedData()
-        isLoadingDetails = false
     }
 
     /// Loads all detailed workout data from HealthKit
