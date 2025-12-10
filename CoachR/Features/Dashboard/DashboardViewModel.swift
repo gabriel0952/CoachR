@@ -14,6 +14,7 @@ class DashboardViewModel {
     var vo2Max: Double?
     var racePredictions: [RacePredictor.RacePrediction]?
     var predictionSeedWorkout: Workout?
+    var trainingStatus: TrainingLoadEngine.TrainingStatus?
     var errorMessage: String?
     var isLoading = false
 
@@ -83,6 +84,9 @@ class DashboardViewModel {
                 self.racePredictions = nil
                 self.predictionSeedWorkout = nil
             }
+
+            // Calculate training load metrics
+            calculateTrainingLoad()
         } catch {
             errorMessage = (error as? HKError)?.errorDescription ?? error.localizedDescription
         }
@@ -124,6 +128,30 @@ class DashboardViewModel {
                 .unitDivided(by: HKUnit.gramUnit(with: .kilo))
                 .unitDivided(by: .minute()))
         }
+    }
+
+    /// Calculate training load metrics (ATL, CTL, ACWR)
+    private func calculateTrainingLoad() {
+        guard let rhr = restingHeartRate else {
+            self.trainingStatus = nil
+            return
+        }
+
+        // Estimate max HR using age-based formula (220 - age)
+        // For now, use a reasonable estimate if we don't have age
+        // TODO: Get actual user age from HealthKit
+        let estimatedMaxHR = 190.0  // Conservative estimate for adult runners
+
+        let userMetrics = TrainingLoadEngine.UserMetrics(
+            maxHR: estimatedMaxHR,
+            restingHR: rhr,
+            gender: .male  // TODO: Get actual gender from HealthKit
+        )
+
+        self.trainingStatus = TrainingLoadEngine.calculateLoadMetrics(
+            from: workouts,
+            userMetrics: userMetrics
+        )
     }
 }
 

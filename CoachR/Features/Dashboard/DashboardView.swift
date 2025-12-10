@@ -26,6 +26,11 @@ struct DashboardView: View {
                         )
                     }
 
+                    // Training Status Card (Full Width)
+                    if let trainingStatus = viewModel.trainingStatus {
+                        TrainingStatusCard(status: trainingStatus)
+                    }
+
                     // Latest Run Card (Full Width)
                     if let latestWorkout = viewModel.workouts.first {
                         NavigationLink {
@@ -368,6 +373,249 @@ struct RacePredictionItem: View {
         .padding(16)
         .background(Color.black.opacity(0.3))
         .cornerRadius(12)
+    }
+}
+
+// MARK: - Training Status Card
+
+struct TrainingStatusCard: View {
+    let status: TrainingLoadEngine.TrainingStatus
+
+    // Show last 28 days of data
+    private var recentHistory: [TrainingLoadEngine.DailyLoad] {
+        let count = status.history.count
+        if count > 28 {
+            return Array(status.history.suffix(28))
+        }
+        return status.history
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
+            HStack {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .foregroundColor(.neonGreen)
+                    .font(.title3)
+
+                Text("訓練狀態")
+                    .font(.system(.title3, design: .rounded))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+
+                Spacer()
+            }
+
+            // Main Content: Gauge + Status
+            HStack(spacing: 24) {
+                // ACWR Gauge (Left side)
+                VStack(spacing: 12) {
+                    ZStack {
+                        // Background arc
+                        Circle()
+                            .trim(from: 0, to: 0.5)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 16)
+                            .frame(width: 140, height: 140)
+                            .rotationEffect(.degrees(180))
+
+                        // Colored segments
+                        GaugeSegments(acwr: status.acwr)
+
+                        // Value display
+                        VStack(spacing: 4) {
+                            Text(String(format: "%.2f", status.acwr))
+                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+
+                            Text("A/C 比")
+                                .font(.system(size: 11, design: .rounded))
+                                .foregroundColor(.gray)
+                        }
+                        .offset(y: 20)
+                    }
+
+                    // Status label
+                    Text(status.status.rawValue)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundColor(Color(hex: status.status.color))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color(hex: status.status.color).opacity(0.15))
+                        .cornerRadius(8)
+                }
+
+                Spacer()
+
+                // Load metrics (Right side)
+                VStack(alignment: .trailing, spacing: 16) {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("體能 (CTL)")
+                            .font(.system(size: 11, design: .rounded))
+                            .foregroundColor(.gray)
+
+                        Text(String(format: "%.0f", status.currentCTL))
+                            .font(.system(size: 24, weight: .semibold, design: .rounded))
+                            .foregroundColor(.blue)
+                    }
+
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("疲勞 (ATL)")
+                            .font(.system(size: 11, design: .rounded))
+                            .foregroundColor(.gray)
+
+                        Text(String(format: "%.0f", status.currentATL))
+                            .font(.system(size: 24, weight: .semibold, design: .rounded))
+                            .foregroundColor(.pink)
+                    }
+                }
+            }
+
+            // Trend Chart
+            if !recentHistory.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("過去 4 週趨勢")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(.gray)
+
+                    Chart {
+                        ForEach(recentHistory) { load in
+                            // CTL Line (Fitness - Blue)
+                            LineMark(
+                                x: .value("Date", load.date),
+                                y: .value("CTL", load.ctl)
+                            )
+                            .foregroundStyle(.blue)
+                            .lineStyle(StrokeStyle(lineWidth: 2))
+                            .interpolationMethod(.catmullRom)
+
+                            // ATL Line (Fatigue - Pink)
+                            LineMark(
+                                x: .value("Date", load.date),
+                                y: .value("ATL", load.atl)
+                            )
+                            .foregroundStyle(.pink)
+                            .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
+                            .interpolationMethod(.catmullRom)
+                        }
+                    }
+                    .frame(height: 100)
+                    .chartXAxis {
+                        AxisMarks(values: .automatic(desiredCount: 4)) { _ in
+                            AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                                .font(.system(size: 9, design: .rounded))
+                                .foregroundStyle(.gray)
+                        }
+                    }
+                    .chartYAxis {
+                        AxisMarks(position: .trailing) { _ in
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 2]))
+                                .foregroundStyle(.gray.opacity(0.3))
+                            AxisValueLabel()
+                                .font(.system(size: 9, design: .rounded))
+                                .foregroundStyle(.gray)
+                        }
+                    }
+
+                    // Legend
+                    HStack(spacing: 16) {
+                        HStack(spacing: 4) {
+                            Rectangle()
+                                .fill(.blue)
+                                .frame(width: 16, height: 2)
+                            Text("體能 (CTL)")
+                                .font(.system(size: 10, design: .rounded))
+                                .foregroundColor(.gray)
+                        }
+
+                        HStack(spacing: 4) {
+                            Rectangle()
+                                .fill(.pink)
+                                .frame(width: 16, height: 2)
+                            Text("疲勞 (ATL)")
+                                .font(.system(size: 10, design: .rounded))
+                                .foregroundColor(.gray)
+                        }
+
+                        Spacer()
+                    }
+                }
+            }
+        }
+        .padding(20)
+        .background(Color.cardBackground)
+        .cornerRadius(16)
+    }
+}
+
+// MARK: - Gauge Segments for ACWR
+
+struct GaugeSegments: View {
+    let acwr: Double
+
+    var body: some View {
+        ZStack {
+            // Gray zone: 0-0.8 (undertraining)
+            Circle()
+                .trim(from: 0, to: 0.13)  // 0.8/6.0 ≈ 0.13 (assuming max 6.0 for visualization)
+                .stroke(Color.gray, lineWidth: 16)
+                .frame(width: 140, height: 140)
+                .rotationEffect(.degrees(180))
+
+            // Green zone: 0.8-1.3 (optimal)
+            Circle()
+                .trim(from: 0.13, to: 0.27)  // 1.3/6.0 ≈ 0.27
+                .stroke(Color.neonGreen, lineWidth: 16)
+                .frame(width: 140, height: 140)
+                .rotationEffect(.degrees(180))
+
+            // Orange zone: 1.3-1.5 (overreaching)
+            Circle()
+                .trim(from: 0.27, to: 0.31)  // 1.5/6.0 ≈ 0.31
+                .stroke(Color.warningOrange, lineWidth: 16)
+                .frame(width: 140, height: 140)
+                .rotationEffect(.degrees(180))
+
+            // Red zone: 1.5+ (hazardous)
+            Circle()
+                .trim(from: 0.31, to: 0.5)
+                .stroke(Color.red, lineWidth: 16)
+                .frame(width: 140, height: 140)
+                .rotationEffect(.degrees(180))
+
+            // Indicator needle
+            NeedleIndicator(value: acwr, maxValue: 3.0)
+        }
+    }
+}
+
+// MARK: - Needle Indicator
+
+struct NeedleIndicator: View {
+    let value: Double
+    let maxValue: Double
+
+    private var rotation: Double {
+        // Map value to 0-180 degrees (half circle)
+        let normalized = min(value / maxValue, 1.0)
+        return normalized * 180
+    }
+
+    var body: some View {
+        ZStack {
+            // Needle
+            Rectangle()
+                .fill(.white)
+                .frame(width: 3, height: 50)
+                .offset(y: -25)
+                .rotationEffect(.degrees(rotation), anchor: .bottom)
+                .rotationEffect(.degrees(180))  // Start from left
+
+            // Center dot
+            Circle()
+                .fill(.white)
+                .frame(width: 8, height: 8)
+        }
+        .offset(y: 20)
     }
 }
 
